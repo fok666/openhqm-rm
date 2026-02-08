@@ -30,6 +30,10 @@ test.describe('ConfigMap Import Examples', () => {
     helpers = new RouteManagerHelpers(page);
     await helpers.goto();
     await helpers.waitForAppReady();
+    
+    // Navigate to Export/Import tab
+    await page.click('[data-testid="configmap-tab"]');
+    await page.waitForTimeout(500); // Wait for tab switch animation
   });
 
   test('should import starter-routes.yaml ConfigMap', async ({ page }) => {
@@ -55,11 +59,15 @@ test.describe('ConfigMap Import Examples', () => {
     await page.waitForSelector('[data-testid="import-dialog"]');
     
     // Paste the ConfigMap data (just the routing.yaml part)
-    await page.fill('[data-testid="import-textarea"]', configMap.data['routing.yaml']);
+    await page.locator('[data-testid="import-textarea"]').fill(configMap.data['routing.yaml']);
     await page.click('[data-testid="import-submit-button"]');
     
     // Verify import success
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
+    
+    // Navigate back to Route Editor tab to see imported routes
+    await page.click('[data-testid="route-editor-tab"]');
+    await page.waitForTimeout(500); // Wait for tab switch
     
     // Verify all routes are imported
     const expectedRoutes = ['user-registration', 'order-create', 'notifications', 'default-route'];
@@ -95,6 +103,9 @@ test.describe('ConfigMap Import Examples', () => {
     
     // Verify import success
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
+    
+    // Switch to route editor tab to see the imported routes
+    await page.click('[data-testid="route-editor-tab"]');
     
     // Verify key routes are imported
     const keyRoutes = [
@@ -136,6 +147,9 @@ test.describe('ConfigMap Import Examples', () => {
     // Verify import success
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
     
+    // Switch to route editor tab to see the imported routes
+    await page.click('[data-testid="route-editor-tab"]');
+    
     // Verify service routes
     const serviceRoutes = [
       'user-service-create',
@@ -163,6 +177,9 @@ test.describe('ConfigMap Import Examples', () => {
     await page.click('[data-testid="import-submit-button"]');
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
 
+    // Switch to route editor tab
+    await page.click('[data-testid="route-editor-tab"]');
+    
     // Select user-registration route
     await helpers.selectRoute('user-registration');
     await page.waitForTimeout(500);
@@ -187,6 +204,9 @@ test.describe('ConfigMap Import Examples', () => {
     await page.click('[data-testid="import-submit-button"]');
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
 
+    // Switch to route editor tab
+    await page.click('[data-testid="route-editor-tab"]');
+    
     // Verify high-priority route
     await helpers.selectRoute('high-priority-orders');
     await page.waitForTimeout(500);
@@ -212,6 +232,9 @@ test.describe('ConfigMap Import Examples', () => {
     await page.click('[data-testid="import-submit-button"]');
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
 
+    // Switch to route editor tab
+    await page.click('[data-testid="route-editor-tab"]');
+    
     // Select payment route
     await helpers.selectRoute('payment-processing');
     await page.waitForTimeout(500);
@@ -313,6 +336,9 @@ test.describe('ConfigMap Import Examples', () => {
     await page.click('[data-testid="import-submit-button"]');
     await expect(page.locator('[data-testid="import-success-message"]')).toBeVisible({ timeout: 10000 });
 
+    // Switch to route editor tab
+    await page.click('[data-testid="route-editor-tab"]');
+    
     // Step 2: Edit a route
     await helpers.selectRoute('order-create');
     await page.waitForTimeout(500);

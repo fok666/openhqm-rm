@@ -1,6 +1,19 @@
 import React, { useState } from 'react';
-import { Box, Paper, Typography, Button, Alert, Tabs, Tab } from '@mui/material';
-import { Download as DownloadIcon, Upload as UploadIcon } from '@mui/icons-material';
+import { 
+  Box, 
+  Paper, 
+  Typography, 
+  Button, 
+  Alert, 
+  Tabs, 
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
+} from '@mui/material';
+import { Download as DownloadIcon, Upload as UploadIcon, ContentPaste as PasteIcon } from '@mui/icons-material';
 import Editor from '@monaco-editor/react';
 import { useRouteStore } from '../store';
 import { storageService } from '../services';
@@ -10,6 +23,9 @@ export const ConfigMapManager: React.FC = () => {
   const [exportFormat, setExportFormat] = useState<'yaml' | 'json'>('yaml');
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importContent, setImportContent] = useState('');
+  const [importSuccess, setImportSuccess] = useState(false);
 
   const handleExport = () => {
     try {
@@ -54,12 +70,37 @@ export const ConfigMapManager: React.FC = () => {
         const importedRoutes = storageService.importFromYAML(content);
         setRoutes(importedRoutes);
         setError('');
-        alert(`Successfully imported ${importedRoutes.length} routes`);
+        setImportSuccess(true);
+        setTimeout(() => setImportSuccess(false), 3000);
       } catch (err: any) {
         setError(`Import failed: ${err.message}`);
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleImportFromText = () => {
+    try {
+      const importedRoutes = storageService.importFromYAML(importContent);
+      setRoutes(importedRoutes);
+      setError('');
+      setImportSuccess(true);
+      setImportDialogOpen(false);
+      setImportContent('');
+      setTimeout(() => setImportSuccess(false), 3000);
+    } catch (err: any) {
+      setError(`Import failed: ${err.message}`);
+    }
+  };
+
+  const handleOpenImportDialog = () => {
+    setImportDialogOpen(true);
+    setError('');
+  };
+
+  const handleCloseImportDialog = () => {
+    setImportDialogOpen(false);
+    setImportContent('');
   };
 
   React.useEffect(() => {
@@ -80,14 +121,19 @@ export const ConfigMapManager: React.FC = () => {
         </Alert>
       )}
 
+      {importSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }} data-testid="import-success-message">
+          Routes imported successfully!
+        </Alert>
+      )}
+
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
         <Button
           variant="outlined"
           component="label"
           startIcon={<UploadIcon />}
-          data-testid="import-button"
         >
-          Import ConfigMap
+          Import from File
           <input
             type="file"
             hidden
@@ -95,6 +141,15 @@ export const ConfigMapManager: React.FC = () => {
             onChange={handleImport}
             data-testid="import-file-input"
           />
+        </Button>
+
+        <Button
+          variant="outlined"
+          startIcon={<PasteIcon />}
+          onClick={handleOpenImportDialog}
+          data-testid="import-button"
+        >
+          Paste ConfigMap
         </Button>
 
         <Tabs value={exportFormat} onChange={(_, v) => setExportFormat(v)}>
@@ -152,6 +207,43 @@ export const ConfigMapManager: React.FC = () => {
           <Typography>Create routes to generate ConfigMap</Typography>
         </Box>
       )}
+
+      {/* Import Dialog */}
+      <Dialog 
+        open={importDialogOpen} 
+        onClose={handleCloseImportDialog}
+        maxWidth="md"
+        fullWidth
+        data-testid="import-dialog"
+      >
+        <DialogTitle>Import ConfigMap</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Paste your ConfigMap YAML or the routing.yaml content below
+          </Typography>
+          <TextField
+            multiline
+            rows={15}
+            fullWidth
+            value={importContent}
+            onChange={(e) => setImportContent(e.target.value)}
+            placeholder="Paste ConfigMap YAML or routing configuration here..."
+            inputProps={{ 'data-testid': 'import-textarea' }}
+            sx={{ fontFamily: 'monospace' }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseImportDialog}>Cancel</Button>
+          <Button 
+            onClick={handleImportFromText}
+            variant="contained"
+            disabled={!importContent.trim()}
+            data-testid="import-submit-button"
+          >
+            Import
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };

@@ -22,34 +22,30 @@ export const RouteList: React.FC = () => {
 
   const handleToggleEnabled = (route: Route, event: React.MouseEvent) => {
     event.stopPropagation();
-    updateRoute(route.id, { enabled: !route.enabled });
+    updateRoute(route.name, { enabled: !route.enabled });
   };
 
-  const handleDelete = (id: string, event: React.MouseEvent) => {
+  const handleDelete = (name: string, event: React.MouseEvent) => {
     event.stopPropagation();
     if (window.confirm('Are you sure you want to delete this route?')) {
-      deleteRoute(id);
+      deleteRoute(name);
     }
   };
 
-  const handleDuplicate = (id: string, event: React.MouseEvent) => {
+  const handleDuplicate = (name: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    duplicateRoute(id);
+    duplicateRoute(name);
   };
 
   const handleNewRoute = () => {
     addRoute({
-      name: 'New Route',
+      name: 'new-route',
       description: '',
       enabled: true,
       priority: 100,
-      conditions: [],
-      conditionOperator: 'AND',
-      actions: [],
-      destination: {
-        type: 'endpoint',
-        target: '',
-      },
+      endpoint: '',
+      method: 'POST',
+      transform_type: 'passthrough',
     });
   };
 
@@ -79,13 +75,13 @@ export const RouteList: React.FC = () => {
         ) : (
           routes.map((route) => (
             <ListItem
-              key={route.id}
+              key={route.name}
               data-testid={`route-item-${route.name}`}
               secondaryAction={
                 <Box>
                   <Switch
                     edge="end"
-                    checked={route.enabled}
+                    checked={route.enabled !== false} // defaults to true
                     onClick={(e) => handleToggleEnabled(route, e)}
                     size="small"
                     data-testid="toggle-enabled"
@@ -93,7 +89,7 @@ export const RouteList: React.FC = () => {
                   />
                   <IconButton
                     edge="end"
-                    onClick={(e) => handleDuplicate(route.id, e)}
+                    onClick={(e) => handleDuplicate(route.name, e)}
                     size="small"
                     data-testid="duplicate-button"
                     aria-label="Duplicate route"
@@ -102,7 +98,7 @@ export const RouteList: React.FC = () => {
                   </IconButton>
                   <IconButton
                     edge="end"
-                    onClick={(e) => handleDelete(route.id, e)}
+                    onClick={(e) => handleDelete(route.name, e)}
                     size="small"
                     data-testid="delete-button"
                     aria-label="Delete route"
@@ -114,7 +110,7 @@ export const RouteList: React.FC = () => {
               disablePadding
             >
               <ListItemButton
-                selected={selectedRoute?.id === route.id}
+                selected={selectedRoute?.name === route.name}
                 onClick={() => selectRoute(route)}
               >
                 <ListItemText
@@ -122,14 +118,14 @@ export const RouteList: React.FC = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {route.name}
                       <Chip
-                        label={`P${route.priority}`}
+                        label={`P${route.priority || 100}`}
                         size="small"
-                        className={route.enabled ? 'enabled' : 'disabled'}
+                        className={route.enabled !== false ? 'enabled' : 'disabled'}
                         data-testid="route-enabled-indicator"
                       />
                     </Box>
                   }
-                  secondary={route.description || `${route.conditions.length} conditions`}
+                  secondary={route.description || route.endpoint}
                 />
               </ListItemButton>
             </ListItem>

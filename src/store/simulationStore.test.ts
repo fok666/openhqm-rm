@@ -28,7 +28,7 @@ describe('SimulationStore', () => {
           timestamp: new Date().toISOString(),
           input: { payload: {}, headers: {}, metadata: {} },
           trace: [],
-          output: { actions: [], errors: [] },
+          output: { errors: [] },
           metrics: { totalDuration: 0, matchingDuration: 0, transformDuration: 0 },
         },
       ],
@@ -79,14 +79,10 @@ describe('SimulationStore', () => {
   it('should set isRunning to true during simulation', async () => {
     const mockRoutes: Route[] = [
       {
-        id: '1',
         name: 'Test Route',
         enabled: true,
         priority: 100,
-        conditions: [],
-        conditionOperator: 'AND',
-        actions: [],
-        destination: { type: 'endpoint', target: 'http://test.com' },
+        endpoint: 'http://test.com',
       },
     ];
 
@@ -164,19 +160,12 @@ describe('SimulationStore', () => {
   it('should handle route with transformation', async () => {
     const mockRoutes: Route[] = [
       {
-        id: '1',
         name: 'Transform Route',
         enabled: true,
         priority: 100,
-        conditions: [],
-        conditionOperator: 'AND',
-        actions: [],
-        transform: {
-          enabled: true,
-          jqExpression: '{ orderId: .orderId }',
-          errorHandling: 'fail',
-        },
-        destination: { type: 'endpoint', target: 'http://test.com' },
+        endpoint: 'http://test.com',
+        transform_type: 'jq',
+        transform: '{ orderId: .orderId }',
       },
     ];
 
@@ -197,19 +186,12 @@ describe('SimulationStore', () => {
   it('should handle transformation errors', async () => {
     const mockRoutes: Route[] = [
       {
-        id: '1',
         name: 'Invalid Transform Route',
         enabled: true,
         priority: 100,
-        conditions: [],
-        conditionOperator: 'AND',
-        actions: [],
-        transform: {
-          enabled: true,
-          jqExpression: 'invalid syntax here',
-          errorHandling: 'fail',
-        },
-        destination: { type: 'endpoint', target: 'http://test.com' },
+        endpoint: 'http://test.com',
+        transform_type: 'jq',
+        transform: 'invalid syntax here',
       },
     ];
 
@@ -229,20 +211,11 @@ describe('SimulationStore', () => {
   it('should handle no matching routes scenario', async () => {
     const mockRoutes: Route[] = [
       {
-        id: '1',
         name: 'Conditional Route',
         enabled: true,
         priority: 100,
-        conditions: [
-          {
-            type: 'payload',
-            field: 'userId',
-            operator: 'exists',
-          },
-        ],
-        conditionOperator: 'AND',
-        actions: [],
-        destination: { type: 'endpoint', target: 'http://test.com' },
+        match_field: 'userId',
+        endpoint: 'http://test.com',
       },
     ];
 
