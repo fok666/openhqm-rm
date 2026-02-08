@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useSimulationStore } from './simulationStore';
 import type { Route } from '../types';
 
@@ -84,7 +84,9 @@ describe('SimulationStore', () => {
         enabled: true,
         priority: 100,
         conditions: [],
-        destination: { type: 'http', endpoint: 'http://test.com' }
+        conditionOperator: 'AND',
+        actions: [],
+        destination: { type: 'endpoint', target: 'http://test.com' }
       }
     ];
 
@@ -166,12 +168,13 @@ describe('SimulationStore', () => {
         name: 'Transform Route',
         enabled: true,
         priority: 100,
-        conditions: [],
-        transform: {
+        conditions: [],        conditionOperator: 'AND',
+        actions: [],        transform: {
           enabled: true,
-          jqExpression: '{ orderId: .orderId }'
+          jqExpression: '{ orderId: .orderId }',
+          errorHandling: 'fail'
         },
-        destination: { type: 'http', endpoint: 'http://test.com' }
+        destination: { type: 'endpoint', target: 'http://test.com' }
       }
     ];
 
@@ -197,11 +200,14 @@ describe('SimulationStore', () => {
         enabled: true,
         priority: 100,
         conditions: [],
+        conditionOperator: 'AND',
+        actions: [],
         transform: {
           enabled: true,
-          jqExpression: 'invalid syntax here'
+          jqExpression: 'invalid syntax here',
+          errorHandling: 'fail'
         },
-        destination: { type: 'http', endpoint: 'http://test.com' }
+        destination: { type: 'endpoint', target: 'http://test.com' }
       }
     ];
 
@@ -231,8 +237,8 @@ describe('SimulationStore', () => {
             field: 'userId',
             operator: 'exists'
           }
-        ],
-        destination: { type: 'http', endpoint: 'http://test.com' }
+        ],        conditionOperator: 'AND',
+        actions: [],        destination: { type: 'endpoint', target: 'http://test.com' }
       }
     ];
 

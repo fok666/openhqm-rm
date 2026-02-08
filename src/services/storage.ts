@@ -1,10 +1,9 @@
 import yaml from 'js-yaml';
-import type { Route, RouteConfig } from '../types';
+import type { Route } from '../types';
 import { settings } from '../config/settings';
 
 export class StorageService {
   private readonly ROUTES_KEY = settings.storage.localStorageKey;
-  private readonly CONFIG_KEY = `${this.ROUTES_KEY}_config`;
 
   saveRoutes(routes: Route[]): void {
     try {
