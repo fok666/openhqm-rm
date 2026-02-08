@@ -6,73 +6,9 @@ import type { Page } from '@playwright/test';
  * Provides common utilities and helpers for testing
  */
 
-// Extended test object with custom fixtures
-export const test = base.extend<{
-  cleanLocalStorage: void;
-  sampleRoute: any;
-  samplePayload: any;
-}>({
-  // Fixture to clean localStorage before each test
-  cleanLocalStorage: [
-    async ({ page }, use) => {
-      await page.goto('/');
-      await page.evaluate(() => localStorage.clear());
-      await use();
-    },
-    { auto: true },
-  ],
-
-  // Sample route for testing
-  sampleRoute: {
-    id: 'test-route-001',
-    name: 'Test High Priority Route',
-    description: 'Test route for E2E testing',
-    enabled: true,
-    priority: 100,
-    conditions: [
-      {
-        type: 'payload',
-        field: 'order.priority',
-        operator: 'equals',
-        value: 'high',
-      },
-    ],
-    conditionOperator: 'AND',
-    transform: {
-      enabled: true,
-      jqExpression: '{ orderId: .order.id, priority: "HIGH" }',
-      errorHandling: 'fail',
-    },
-    destination: {
-      type: 'endpoint',
-      target: 'order-service-high',
-      endpoint: 'order-service-high',
-    },
-  },
-
-  // Sample payload for testing
-  samplePayload: {
-    order: {
-      id: 12345,
-      priority: 'high',
-      customer: {
-        id: 'CUST-001',
-        name: 'Test Customer',
-      },
-      items: [
-        { sku: 'ITEM-001', quantity: 2 },
-        { sku: 'ITEM-002', quantity: 1 },
-      ],
-    },
-  },
-});
-
-export { expect };
-
 /**
  * Helper functions for E2E tests
  */
-
 export class RouteManagerHelpers {
   constructor(private page: Page) {}
 
@@ -87,7 +23,7 @@ export class RouteManagerHelpers {
   /**
    * Wait for the application to be ready
    */
-  async waitForAppReady()  {
+  async waitForAppReady() {
     await this.page.waitForSelector('[data-testid="app-container"]', {
       timeout: 10000,
     });
@@ -184,7 +120,10 @@ export class RouteManagerHelpers {
    * Run simulation
    */
   async runSimulation(payload: any) {
-    await this.page.fill('[data-testid="simulation-payload-editor"]', JSON.stringify(payload, null, 2));
+    await this.page.fill(
+      '[data-testid="simulation-payload-editor"]',
+      JSON.stringify(payload, null, 2)
+    );
     await this.page.click('[data-testid="run-simulation-button"]');
     await this.page.waitForSelector('[data-testid="simulation-results"]', {
       timeout: 10000,
@@ -233,6 +172,79 @@ export class RouteManagerHelpers {
    * Take screenshot
    */
   async screenshot(name: string) {
-    await this.page.screenshot({ path: `screenshots/${name}.png`, fullPage: true });
+    await this.page.screenshot({
+      path: `screenshots/${name}.png`,
+      fullPage: true,
+    });
   }
 }
+
+// Extended test object with custom fixtures
+export const test = base.extend<{
+  cleanLocalStorage: void;
+  sampleRoute: any;
+  samplePayload: any;
+  helpers: RouteManagerHelpers;
+}>({
+  // Fixture to clean localStorage before each test
+  cleanLocalStorage: [
+    async ({ page }, use) => {
+      await page.goto('/');
+      await page.evaluate(() => localStorage.clear());
+      await use();
+    },
+    { auto: true },
+  ],
+
+  // Helper functions fixture
+  helpers: async ({ page }, use) => {
+    const helpers = new RouteManagerHelpers(page);
+    await use(helpers);
+  },
+
+  // Sample route for testing
+  sampleRoute: {
+    id: 'test-route-001',
+    name: 'Test High Priority Route',
+    description: 'Test route for E2E testing',
+    enabled: true,
+    priority: 100,
+    conditions: [
+      {
+        type: 'payload',
+        field: 'order.priority',
+        operator: 'equals',
+        value: 'high',
+      },
+    ],
+    conditionOperator: 'AND',
+    transform: {
+      enabled: true,
+      jqExpression: '{ orderId: .order.id, priority: "HIGH" }',
+      errorHandling: 'fail',
+    },
+    destination: {
+      type: 'endpoint',
+      target: 'order-service-high',
+      endpoint: 'order-service-high',
+    },
+  },
+
+  // Sample payload for testing
+  samplePayload: {
+    order: {
+      id: 12345,
+      priority: 'high',
+      customer: {
+        id: 'CUST-001',
+        name: 'Test Customer',
+      },
+      items: [
+        { sku: 'ITEM-001', quantity: 2 },
+        { sku: 'ITEM-002', quantity: 1 },
+      ],
+    },
+  },
+});
+
+export { expect };
