@@ -72,9 +72,7 @@ export class StorageService {
   }
 
   private generateConfigMap(routes: Route[]): any {
-    const timestamp = settings.export.includeTimestamp
-      ? new Date().toISOString()
-      : undefined;
+    const timestamp = settings.export.includeTimestamp ? new Date().toISOString() : undefined;
 
     const routesData = {
       version: '1.0',

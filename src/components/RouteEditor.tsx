@@ -151,9 +151,7 @@ export const RouteEditor: React.FC = () => {
             <InputLabel>Operator</InputLabel>
             <Select
               value={localRoute.conditionOperator}
-              onChange={(e) =>
-                handleUpdate({ conditionOperator: e.target.value as 'AND' | 'OR' })
-              }
+              onChange={(e) => handleUpdate({ conditionOperator: e.target.value as 'AND' | 'OR' })}
               label="Operator"
               data-testid="condition-operator"
             >
@@ -242,9 +240,9 @@ export const RouteEditor: React.FC = () => {
           </Paper>
         ))}
 
-        <Button 
-          startIcon={<AddIcon />} 
-          onClick={handleAddCondition} 
+        <Button
+          startIcon={<AddIcon />}
+          onClick={handleAddCondition}
           variant="outlined"
           data-testid="add-condition-button"
         >

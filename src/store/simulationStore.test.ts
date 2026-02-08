@@ -29,8 +29,8 @@ describe('SimulationStore', () => {
           input: { payload: {}, headers: {}, metadata: {} },
           trace: [],
           output: { actions: [], errors: [] },
-          metrics: { totalDuration: 0, matchingDuration: 0, transformDuration: 0 }
-        }
+          metrics: { totalDuration: 0, matchingDuration: 0, transformDuration: 0 },
+        },
       ],
       currentSimulation: null,
       isRunning: false,
@@ -51,7 +51,7 @@ describe('SimulationStore', () => {
       input: { payload: { test: 'data' }, headers: {}, metadata: {} },
       trace: [],
       output: { actions: [], errors: [] },
-      metrics: { totalDuration: 0, matchingDuration: 0, transformDuration: 0 }
+      metrics: { totalDuration: 0, matchingDuration: 0, transformDuration: 0 },
     };
 
     useSimulationStore.setState({
@@ -86,24 +86,24 @@ describe('SimulationStore', () => {
         conditions: [],
         conditionOperator: 'AND',
         actions: [],
-        destination: { type: 'endpoint', target: 'http://test.com' }
-      }
+        destination: { type: 'endpoint', target: 'http://test.com' },
+      },
     ];
 
     const mockInput = {
       payload: { orderId: 123 },
       headers: { 'x-test': 'value' },
-      metadata: { source: 'test' }
+      metadata: { source: 'test' },
     };
 
     const { startSimulation } = useSimulationStore.getState();
-    
+
     // Start simulation (don't await to check isRunning state)
     const simulationPromise = startSimulation(mockInput, mockRoutes);
-    
+
     // Check that isRunning was set to true
     expect(useSimulationStore.getState().isRunning).toBe(true);
-    
+
     // Wait for completion
     await simulationPromise;
   });
@@ -113,7 +113,7 @@ describe('SimulationStore', () => {
     const mockInput = {
       payload: { test: 'data' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
@@ -134,11 +134,11 @@ describe('SimulationStore', () => {
     const mockInput = {
       payload: { test: 'data' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
-    
+
     await startSimulation(mockInput, mockRoutes);
     await startSimulation(mockInput, mockRoutes);
 
@@ -151,7 +151,7 @@ describe('SimulationStore', () => {
     const mockInput = {
       payload: { test: 'data' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
@@ -168,20 +168,22 @@ describe('SimulationStore', () => {
         name: 'Transform Route',
         enabled: true,
         priority: 100,
-        conditions: [],        conditionOperator: 'AND',
-        actions: [],        transform: {
+        conditions: [],
+        conditionOperator: 'AND',
+        actions: [],
+        transform: {
           enabled: true,
           jqExpression: '{ orderId: .orderId }',
-          errorHandling: 'fail'
+          errorHandling: 'fail',
         },
-        destination: { type: 'endpoint', target: 'http://test.com' }
-      }
+        destination: { type: 'endpoint', target: 'http://test.com' },
+      },
     ];
 
     const mockInput = {
       payload: { orderId: 123, customerName: 'Test Customer' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
@@ -205,16 +207,16 @@ describe('SimulationStore', () => {
         transform: {
           enabled: true,
           jqExpression: 'invalid syntax here',
-          errorHandling: 'fail'
+          errorHandling: 'fail',
         },
-        destination: { type: 'endpoint', target: 'http://test.com' }
-      }
+        destination: { type: 'endpoint', target: 'http://test.com' },
+      },
     ];
 
     const mockInput = {
       payload: { test: 'data' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
@@ -235,26 +237,26 @@ describe('SimulationStore', () => {
           {
             type: 'payload',
             field: 'userId',
-            operator: 'exists'
-          }
-        ],        conditionOperator: 'AND',
-        actions: [],        destination: { type: 'endpoint', target: 'http://test.com' }
-      }
+            operator: 'exists',
+          },
+        ],
+        conditionOperator: 'AND',
+        actions: [],
+        destination: { type: 'endpoint', target: 'http://test.com' },
+      },
     ];
 
     const mockInput = {
       payload: { orderId: 123 }, // No userId field
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
     await startSimulation(mockInput, mockRoutes);
 
     const state = useSimulationStore.getState();
-    const warningError = state.simulations[0].output.errors.find(
-      e => e.severity === 'warning'
-    );
+    const warningError = state.simulations[0].output.errors.find((e) => e.severity === 'warning');
     expect(warningError).toBeDefined();
     expect(warningError?.message).toContain('No matching route');
   });
@@ -264,11 +266,11 @@ describe('SimulationStore', () => {
     const mockInput = {
       payload: { test: 'data' },
       headers: {},
-      metadata: {}
+      metadata: {},
     };
 
     const { startSimulation } = useSimulationStore.getState();
-    
+
     // Run 15 simulations
     for (let i = 0; i < 15; i++) {
       await startSimulation(mockInput, mockRoutes);

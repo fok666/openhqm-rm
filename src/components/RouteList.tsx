@@ -12,11 +12,7 @@ import {
   Button,
   Switch,
 } from '@mui/material';
-import {
-  Delete as DeleteIcon,
-  ContentCopy as CopyIcon,
-  Add as AddIcon,
-} from '@mui/icons-material';
+import { Delete as DeleteIcon, ContentCopy as CopyIcon, Add as AddIcon } from '@mui/icons-material';
 import { useRouteStore } from '../store';
 import type { Route } from '../types';
 
@@ -104,9 +100,9 @@ export const RouteList: React.FC = () => {
                   >
                     <CopyIcon fontSize="small" />
                   </IconButton>
-                  <IconButton 
-                    edge="end" 
-                    onClick={(e) => handleDelete(route.id, e)} 
+                  <IconButton
+                    edge="end"
+                    onClick={(e) => handleDelete(route.id, e)}
                     size="small"
                     data-testid="delete-button"
                     aria-label="Delete route"
@@ -125,9 +121,9 @@ export const RouteList: React.FC = () => {
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {route.name}
-                      <Chip 
-                        label={`P${route.priority}`} 
-                        size="small" 
+                      <Chip
+                        label={`P${route.priority}`}
+                        size="small"
                         className={route.enabled ? 'enabled' : 'disabled'}
                         data-testid="route-enabled-indicator"
                       />
