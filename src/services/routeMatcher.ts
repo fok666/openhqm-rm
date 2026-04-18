@@ -1,14 +1,38 @@
 import type { Route, SimulationContext } from '../types';
 
 export class RouteMatcher {
+  private regexCache = new Map<string, RegExp | null>();
+
+  private getRegex(pattern: string): RegExp | null {
+    if (this.regexCache.has(pattern)) {
+      return this.regexCache.get(pattern)!;
+    }
+    try {
+      const regex = new RegExp(pattern);
+      this.regexCache.set(pattern, regex);
+      return regex;
+    } catch {
+      this.regexCache.set(pattern, null);
+      return null;
+    }
+  }
+
   async matchRoute(routes: Route[], context: SimulationContext): Promise<Route | null> {
     // Sort by priority (higher first), defaulting to 100
     const sortedRoutes = routes
       .filter((r) => r.enabled !== false)
       .sort((a, b) => (b.priority ?? 100) - (a.priority ?? 100));
 
+    // Pre-stringify payload once for routes that match against full payload
+    let payloadString: string | undefined;
+
     for (const route of sortedRoutes) {
-      if (this.evaluateRoute(route, context)) {
+      if (this.evaluateRoute(route, context, () => {
+        if (payloadString === undefined) {
+          payloadString = JSON.stringify(context.input.payload);
+        }
+        return payloadString;
+      })) {
         return route;
       }
     }
@@ -16,7 +40,11 @@ export class RouteMatcher {
     return null;
   }
 
-  evaluateRoute(route: Route, context: SimulationContext): boolean {
+  evaluateRoute(
+    route: Route,
+    context: SimulationContext,
+    getPayloadString?: () => string,
+  ): boolean {
     // Default routes always match (lowest priority fallback)
     if (route.is_default) {
       return true;
@@ -45,12 +73,8 @@ export class RouteMatcher {
 
       // Check pattern match
       if (route.match_pattern) {
-        try {
-          const regex = new RegExp(route.match_pattern);
-          if (!regex.test(String(fieldValue ?? ''))) {
-            return false;
-          }
-        } catch {
+        const regex = this.getRegex(route.match_pattern);
+        if (!regex || !regex.test(String(fieldValue ?? ''))) {
           return false;
         }
       }
@@ -60,19 +84,20 @@ export class RouteMatcher {
 
     // match_pattern without match_field: match against JSON string of payload
     if (route.match_pattern) {
-      try {
-        const regex = new RegExp(route.match_pattern);
-        return regex.test(JSON.stringify(context.input.payload));
-      } catch {
-        return false;
-      }
+      const regex = this.getRegex(route.match_pattern);
+      if (!regex) return false;
+      const str = getPayloadString ? getPayloadString() : JSON.stringify(context.input.payload);
+      return regex.test(str);
     }
 
     return false;
   }
 
-  private getNestedValue(obj: any, path: string): any {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
+  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+    return path.split('.').reduce<unknown>(
+      (current, key) => (current as Record<string, unknown>)?.[key],
+      obj,
+    );
   }
 }
 

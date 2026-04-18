@@ -107,8 +107,11 @@ export const RouteEditor: React.FC = () => {
           <TextField
             label="Priority"
             type="number"
-            value={localRoute.priority || 100}
-            onChange={(e) => handleUpdate({ priority: parseInt(e.target.value) || 100 })}
+            value={localRoute.priority ?? 100}
+            onChange={(e) => {
+              const val = parseInt(e.target.value);
+              handleUpdate({ priority: isNaN(val) ? 100 : val });
+            }}
             sx={{ flex: 1 }}
             slotProps={{ htmlInput: { 'data-testid': 'route-priority-input' } }}
           />
