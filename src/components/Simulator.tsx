@@ -8,18 +8,38 @@ import {
   Chip,
   TextField,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   Visibility as TraceIcon,
+  Download as DownloadIcon,
+  Save as SaveIcon,
+  FolderOpen as LoadIcon,
+  Compare as CompareIcon,
 } from '@mui/icons-material';
 import { useSimulationStore, useRouteStore } from '../store';
+import type { SimulationContext } from '../types';
 
 interface KVPair {
   key: string;
   value: string;
+}
+
+interface Scenario {
+  name: string;
+  payload: string;
+  headers: KVPair[];
+  metadata: KVPair[];
 }
 
 export const Simulator: React.FC = () => {
@@ -31,6 +51,12 @@ export const Simulator: React.FC = () => {
   const [headers, setHeaders] = useState<KVPair[]>([]);
   const [metadata, setMetadata] = useState<KVPair[]>([]);
   const [showTrace, setShowTrace] = useState(false);
+  const [savedResults, setSavedResults] = useState<SimulationContext[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [saveScenarioOpen, setSaveScenarioOpen] = useState(false);
+  const [loadScenarioOpen, setLoadScenarioOpen] = useState(false);
+  const [scenarioName, setScenarioName] = useState('');
 
   const handleSimulate = async () => {
     try {
@@ -61,6 +87,37 @@ export const Simulator: React.FC = () => {
   const removeMetadata = (index: number) => setMetadata(metadata.filter((_, i) => i !== index));
   const updateMetadata = (index: number, field: 'key' | 'value', val: string) => {
     setMetadata(metadata.map((m, i) => (i === index ? { ...m, [field]: val } : m)));
+  };
+
+  const handleExportResults = () => {
+    if (!currentSimulation) return;
+    const blob = new Blob([JSON.stringify(currentSimulation, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `simulation-results-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveResult = () => {
+    if (currentSimulation) {
+      setSavedResults((prev) => [...prev, currentSimulation]);
+    }
+  };
+
+  const handleSaveScenario = () => {
+    if (!scenarioName.trim()) return;
+    setScenarios((prev) => [...prev, { name: scenarioName, payload: input, headers, metadata }]);
+    setSaveScenarioOpen(false);
+    setScenarioName('');
+  };
+
+  const handleLoadScenario = (scenario: Scenario) => {
+    setInput(scenario.payload);
+    setHeaders(scenario.headers);
+    setMetadata(scenario.metadata);
+    setLoadScenarioOpen(false);
   };
 
   const textareaStyle: React.CSSProperties = {
@@ -95,10 +152,10 @@ export const Simulator: React.FC = () => {
             Payload
           </Typography>
           <Box
-            data-testid="simulation-payload-editor"
             sx={{ height: '200px', border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}
           >
             <textarea
+              data-testid="simulation-payload-editor"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               style={textareaStyle}
@@ -180,16 +237,35 @@ export const Simulator: React.FC = () => {
         ))}
       </Box>
 
-      <Button
-        variant="contained"
-        startIcon={<PlayIcon />}
-        onClick={handleSimulate}
-        disabled={isRunning || routes.length === 0}
-        sx={{ mb: 2, alignSelf: 'flex-start' }}
-        data-testid="run-simulation-button"
-      >
-        {isRunning ? 'Running...' : 'Simulate Routing'}
-      </Button>
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        <Button
+          variant="contained"
+          startIcon={<PlayIcon />}
+          onClick={handleSimulate}
+          disabled={isRunning}
+          data-testid="run-simulation-button"
+        >
+          {isRunning ? 'Running...' : 'Simulate Routing'}
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<SaveIcon />}
+          onClick={() => setSaveScenarioOpen(true)}
+          data-testid="save-scenario-button"
+        >
+          Save Scenario
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<LoadIcon />}
+          onClick={() => setLoadScenarioOpen(true)}
+          data-testid="load-scenario-button"
+        >
+          Load Scenario
+        </Button>
+      </Box>
 
       {currentSimulation && (
         <Box data-testid="simulation-results" sx={{ flexGrow: 1, overflow: 'auto' }}>
@@ -202,13 +278,13 @@ export const Simulator: React.FC = () => {
             {currentSimulation.output.matchedRoute ? (
               <Alert severity="success" data-testid="matched-route" sx={{ mb: 1 }}>
                 <Typography variant="body1">
-                  Route matched: <strong>{currentSimulation.output.matchedRoute}</strong>
+                  Success - Route matched: <strong>{currentSimulation.output.matchedRoute}</strong>
                 </Typography>
                 <Typography variant="body2" data-testid="destination-display">
                   Destination: {currentSimulation.output.destination}
                 </Typography>
                 <Typography variant="body2" data-testid="routes-evaluated">
-                  {currentSimulation.trace.filter(t => t.description?.includes('Evaluating')).length || routes.length} routes evaluated
+                  {routes.filter(r => r.enabled !== false).length} routes evaluated
                 </Typography>
               </Alert>
             ) : (
@@ -282,7 +358,7 @@ export const Simulator: React.FC = () => {
               {currentSimulation.trace.map((step, index) => (
                 <Box
                   key={index}
-                  data-testid="trace-step"
+                  data-testid={step.type === 'condition' ? 'condition-evaluation' : 'trace-step'}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -291,6 +367,7 @@ export const Simulator: React.FC = () => {
                     mb: 0.5,
                     bgcolor: step.success ? '#e8f5e9' : '#fbe9e7',
                     borderRadius: 1,
+                    ...(step.type === 'condition' ? { ml: 2, fontSize: '0.85em' } : {}),
                   }}
                 >
                   <Chip
@@ -298,7 +375,7 @@ export const Simulator: React.FC = () => {
                     size="small"
                     color={step.success ? 'success' : 'error'}
                   />
-                  <Typography variant="body2" sx={{ flex: 1 }} data-testid="condition-evaluation">
+                  <Typography variant="body2" sx={{ flex: 1 }}>
                     {step.description}
                   </Typography>
                   <Chip label={`${step.duration.toFixed(2)}ms`} size="small" variant="outlined" />
@@ -306,8 +383,109 @@ export const Simulator: React.FC = () => {
               ))}
             </Box>
           )}
+
+          {/* Action buttons */}
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={handleExportResults}
+              data-testid="export-simulation-results"
+            >
+              Export Results
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveResult}
+              data-testid="save-simulation-result"
+            >
+              Save Result
+            </Button>
+            {savedResults.length >= 2 && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<CompareIcon />}
+                onClick={() => setShowComparison(true)}
+                data-testid="compare-simulations-button"
+              >
+                Compare
+              </Button>
+            )}
+          </Box>
+
+          {/* Comparison View */}
+          {showComparison && (
+            <Box data-testid="simulation-comparison" sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Simulation Comparison</Typography>
+              {savedResults.map((sim, index) => (
+                <Box
+                  key={index}
+                  data-testid="simulation-result"
+                  sx={{ p: 1, mb: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}
+                >
+                  <Typography variant="body2">
+                    {sim.output.matchedRoute
+                      ? `Matched: ${sim.output.matchedRoute}`
+                      : 'No match'}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
       )}
+
+      {/* Save Scenario Dialog */}
+      <Dialog open={saveScenarioOpen} onClose={() => setSaveScenarioOpen(false)}>
+        <DialogTitle>Save Scenario</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Scenario Name"
+            value={scenarioName}
+            onChange={(e) => setScenarioName(e.target.value)}
+            slotProps={{ htmlInput: { 'data-testid': 'scenario-name-input' } }}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveScenarioOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleSaveScenario}
+            variant="contained"
+            data-testid="confirm-save-scenario"
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Load Scenario Dialog */}
+      <Dialog open={loadScenarioOpen} onClose={() => setLoadScenarioOpen(false)}>
+        <DialogTitle>Load Scenario</DialogTitle>
+        <DialogContent>
+          {scenarios.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No saved scenarios</Typography>
+          ) : (
+            <List>
+              {scenarios.map((scenario, index) => (
+                <ListItem key={index} disablePadding>
+                  <ListItemButton
+                    onClick={() => handleLoadScenario(scenario)}
+                    data-testid={`scenario-${scenario.name}`}
+                  >
+                    <ListItemText primary={scenario.name} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+      </Dialog>
     </Paper>
   );
 };

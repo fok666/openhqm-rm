@@ -22,9 +22,10 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useRouteStore } from '../store';
-import type { Route } from '../types';
+import type { Route, RouteCondition } from '../types';
 
 interface Condition {
+  type: string;
   field: string;
   operator: string;
   value: string;
@@ -50,6 +51,19 @@ export const RouteEditor: React.FC = () => {
         selectedRoute.transform_type !== undefined &&
         selectedRoute.transform_type !== 'passthrough'
       );
+      // Load conditions from route
+      setConditions(
+        (selectedRoute.conditions || []).map((c) => ({
+          type: c.type || 'payload',
+          field: c.field,
+          operator: c.operator,
+          value: c.value || '',
+        }))
+      );
+      setConditionOperator(selectedRoute.conditionOperator || 'AND');
+    } else {
+      setConditions([]);
+      setConditionOperator('AND');
     }
   }, [selectedRoute]);
 
@@ -81,14 +95,22 @@ export const RouteEditor: React.FC = () => {
       return;
     }
 
-    updateRoute(originalNameRef.current, localRoute);
+    const routeConditions: RouteCondition[] = conditions
+      .filter((c) => c.field)
+      .map((c) => ({ type: c.type as RouteCondition['type'], field: c.field, operator: c.operator, value: c.value }));
+
+    updateRoute(originalNameRef.current, {
+      ...localRoute,
+      conditions: routeConditions.length > 0 ? routeConditions : undefined,
+      conditionOperator: routeConditions.length > 1 ? conditionOperator as 'AND' | 'OR' : undefined,
+    });
     originalNameRef.current = localRoute.name;
     setValidationError('');
     setShowSuccess(true);
   };
 
   const handleAddCondition = () => {
-    setConditions([...conditions, { field: '', operator: 'equals', value: '' }]);
+    setConditions([...conditions, { type: 'payload', field: '', operator: 'equals', value: '' }]);
   };
 
   const handleUpdateCondition = (index: number, updates: Partial<Condition>) => {
@@ -192,22 +214,31 @@ export const RouteEditor: React.FC = () => {
         </Box>
 
         {conditions.length > 1 && (
-          <FormControl size="small" sx={{ mb: 2, minWidth: 120 }}>
-            <InputLabel>Logic</InputLabel>
-            <Select
+          <Box sx={{ mb: 2 }}>
+            <select
               value={conditionOperator}
               onChange={(e) => setConditionOperator(e.target.value)}
-              label="Logic"
               data-testid="condition-operator"
+              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
             >
-              <MenuItem value="AND">AND</MenuItem>
-              <MenuItem value="OR">OR</MenuItem>
-            </Select>
-          </FormControl>
+              <option value="AND">AND</option>
+              <option value="OR">OR</option>
+            </select>
+          </Box>
         )}
 
         {conditions.map((condition, index) => (
           <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+            <select
+              value={condition.type}
+              onChange={(e) => handleUpdateCondition(index, { type: e.target.value })}
+              data-testid="condition-type-select"
+              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+            >
+              <option value="payload">payload</option>
+              <option value="header">header</option>
+              <option value="metadata">metadata</option>
+            </select>
             <TextField
               size="small"
               label="Field"
@@ -216,20 +247,17 @@ export const RouteEditor: React.FC = () => {
               sx={{ flex: 2 }}
               slotProps={{ htmlInput: { 'data-testid': 'condition-field-input' } }}
             />
-            <FormControl size="small" sx={{ flex: 1 }}>
-              <InputLabel>Operator</InputLabel>
-              <Select
-                value={condition.operator}
-                onChange={(e) => handleUpdateCondition(index, { operator: e.target.value })}
-                label="Operator"
-                data-testid="condition-operator-select"
-              >
-                <MenuItem value="equals">equals</MenuItem>
-                <MenuItem value="contains">contains</MenuItem>
-                <MenuItem value="regex">regex</MenuItem>
-                <MenuItem value="exists">exists</MenuItem>
-              </Select>
-            </FormControl>
+            <select
+              value={condition.operator}
+              onChange={(e) => handleUpdateCondition(index, { operator: e.target.value })}
+              data-testid="condition-operator-select"
+              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', flex: 1 }}
+            >
+              <option value="equals">equals</option>
+              <option value="contains">contains</option>
+              <option value="regex">regex</option>
+              <option value="exists">exists</option>
+            </select>
             <TextField
               size="small"
               label="Value"

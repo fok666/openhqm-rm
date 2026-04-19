@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Box,
   List,
@@ -20,6 +20,8 @@ import {
   Alert,
   ToggleButtonGroup,
   ToggleButton,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -39,13 +41,28 @@ export const RouteList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [routeToDelete, setRouteToDelete] = useState<string | null>(null);
+
+  // Export state
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<string>('yaml');
+  const [exportPreview, setExportPreview] = useState('');
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [configMapName, setConfigMapName] = useState('openhqm-routes');
+  const [configMapNamespace, setConfigMapNamespace] = useState('openhqm');
+  const [customLabels, setCustomLabels] = useState<{ key: string; value: string }[]>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  // Import state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importContent, setImportContent] = useState('');
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState(false);
-  const [exportFormat, setExportFormat] = useState<string>('yaml');
-  const [exportPreview, setExportPreview] = useState('');
+  const [importTab, setImportTab] = useState(0);
+  const [importHistory, setImportHistory] = useState<{ name: string; date: string; count: number }[]>([]);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [pendingImportRoutes, setPendingImportRoutes] = useState<Route[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sortedRoutes = useMemo(() => {
     return [...routes].sort((a, b) => (b.priority ?? 100) - (a.priority ?? 100));
@@ -93,7 +110,7 @@ export const RouteList: React.FC = () => {
 
   const handleNewRoute = () => {
     addRoute({
-      name: 'new-route',
+      name: '',
       description: '',
       enabled: true,
       priority: 100,
@@ -104,25 +121,38 @@ export const RouteList: React.FC = () => {
   };
 
   const generateConfigMap = (format: string) => {
+    const labels: Record<string, string> = { app: 'openhqm', component: 'router' };
+    customLabels.forEach((l) => {
+      if (l.key) labels[l.key] = l.value;
+    });
     const configMap = {
       apiVersion: 'v1',
       kind: 'ConfigMap',
       metadata: {
-        name: 'openhqm-routes',
-        namespace: 'openhqm',
-        labels: { app: 'openhqm', component: 'router' },
+        name: configMapName,
+        namespace: configMapNamespace,
+        labels,
+        annotations: { managedBy: 'router-manager' },
       },
       data: {
-        'routes.yaml': yaml.dump({ version: '1.0', routes }),
+        'routes.yaml': yaml.dump({ version: '1.0', routes }, { quotingType: '"' }),
       },
     };
     return format === 'json' ? JSON.stringify(configMap, null, 2) : yaml.dump(configMap);
   };
 
   const handleOpenExport = () => {
-    const preview = generateConfigMap(exportFormat);
-    setExportPreview(preview);
+    setImportDialogOpen(false);
+    setPreviewVisible(false);
+    setExportPreview('');
+    setCopySuccess(false);
     setExportDialogOpen(true);
+  };
+
+  const handlePreview = () => {
+    const content = generateConfigMap(exportFormat);
+    setExportPreview(content);
+    setPreviewVisible(true);
   };
 
   const handleExportDownload = () => {
@@ -137,60 +167,126 @@ export const RouteList: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleCopyConfigMap = async () => {
+    try {
+      await navigator.clipboard.writeText(exportPreview);
+    } catch {
+      // fallback
+    }
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 3000);
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizeRoute = (r: any): Route => ({
+    name: r.name || r.id || 'imported-route',
+    description: r.description || '',
+    enabled: r.enabled !== false,
+    priority: r.priority ?? 100,
+    endpoint: r.endpoint || r.destination?.endpoint || '',
+    method: r.method || 'POST',
+    transform_type: r.transform_type || r.transform?.type || 'passthrough',
+    transform: r.transform?.jqExpression || (typeof r.transform === 'string' ? r.transform : '') || '',
+    match_field: r.match_field || '',
+    match_value: r.match_value || '',
+    match_pattern: r.match_pattern || '',
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extractRoutes = (parsed: any): any[] => {
+    if (!parsed || typeof parsed !== 'object') return [];
+    if ('data' in parsed && typeof parsed.data === 'object') {
+      const data = parsed.data;
+      const routesYaml = data['routes.yaml'] || data['routing.yaml'];
+      if (routesYaml) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inner = yaml.load(routesYaml) as any;
+        if (inner && Array.isArray(inner.routes)) return inner.routes;
+      }
+    } else if (Array.isArray(parsed.routes)) {
+      return parsed.routes;
+    } else if ('version' in parsed && 'routes' in parsed) {
+      return parsed.routes;
+    }
+    return [];
+  };
+
+  const finalizeImport = (normalizedRoutes: Route[], replace: boolean) => {
+    if (replace) {
+      const newNames = new Set(normalizedRoutes.map((r) => r.name));
+      const filtered = routes.filter((r) => !newNames.has(r.name));
+      setRoutes([...filtered, ...normalizedRoutes]);
+    } else {
+      setRoutes([...routes, ...normalizedRoutes]);
+    }
+    setImportHistory((prev) => [
+      ...prev,
+      { name: `Import ${prev.length + 1}`, date: new Date().toISOString(), count: normalizedRoutes.length },
+    ]);
+    setImportDialogOpen(false);
+    setConflictDialogOpen(false);
+    setImportSuccess(true);
+    setTimeout(() => setImportSuccess(false), 5000);
+  };
+
   const handleOpenImport = () => {
+    setExportDialogOpen(false);
     setImportContent('');
     setImportError('');
     setImportSuccess(false);
+    setImportTab(0);
+    setSelectedFile(null);
     setImportDialogOpen(true);
   };
 
   const handleImportConfirm = () => {
     try {
-      const parsed = yaml.load(importContent) as Record<string, unknown>;
-      let importedRoutes: Route[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = yaml.load(importContent) as any;
+      const rawRoutes = extractRoutes(parsed);
 
-      if (parsed && typeof parsed === 'object') {
-        if ('data' in parsed && typeof (parsed as Record<string, unknown>).data === 'object') {
-          const data = (parsed as Record<string, Record<string, string>>).data;
-          const routesYaml = data['routes.yaml'] || data['routing.yaml'];
-          if (routesYaml) {
-            const inner = yaml.load(routesYaml) as Record<string, unknown>;
-            if (inner && Array.isArray((inner as Record<string, unknown>).routes)) {
-              importedRoutes = (inner as Record<string, Route[]>).routes;
-            }
-          }
-        } else if (Array.isArray((parsed as Record<string, unknown>).routes)) {
-          importedRoutes = (parsed as Record<string, Route[]>).routes;
-        } else if ('version' in parsed && 'routes' in parsed) {
-          importedRoutes = (parsed as Record<string, Route[]>).routes;
-        }
-      }
-
-      if (importedRoutes.length === 0) {
+      if (rawRoutes.length === 0) {
         setImportError('Invalid ConfigMap format: no routes found');
         return;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setRoutes([...routes, ...importedRoutes.map((r: any) => ({
-        name: r.name || r.id || 'imported-route',
-        description: r.description || '',
-        enabled: r.enabled !== false,
-        priority: r.priority ?? 100,
-        endpoint: r.endpoint || r.destination?.endpoint || '',
-        method: r.method || 'POST',
-        transform_type: r.transform_type || 'passthrough',
-        transform: r.transform || '',
-        match_field: r.match_field || '',
-        match_value: r.match_value || '',
-        match_pattern: r.match_pattern || '',
-      } as Route))]);
+      const normalized = rawRoutes.map(normalizeRoute);
+      const conflicts = normalized.filter((r) => routes.some((existing) => existing.name === r.name));
+      if (conflicts.length > 0) {
+        setPendingImportRoutes(normalized);
+        setConflictDialogOpen(true);
+        return;
+      }
 
-      setImportDialogOpen(false);
-      setImportSuccess(true);
-      setTimeout(() => setImportSuccess(false), 5000);
+      finalizeImport(normalized, false);
     } catch {
       setImportError('Invalid ConfigMap format: could not parse YAML');
+    }
+  };
+
+  const handleReplaceExisting = () => {
+    finalizeImport(pendingImportRoutes, true);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setSelectedFile(file);
+  };
+
+  const handleFileImport = async () => {
+    if (!selectedFile) return;
+    try {
+      const content = await selectedFile.text();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = yaml.load(content) as any;
+      const rawRoutes = extractRoutes(parsed);
+      if (rawRoutes.length === 0) {
+        setImportError('Invalid ConfigMap format: no routes found');
+        return;
+      }
+      finalizeImport(rawRoutes.map(normalizeRoute), false);
+    } catch {
+      setImportError('Invalid file format');
     }
   };
 
@@ -348,37 +444,125 @@ export const RouteList: React.FC = () => {
       <Dialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
         data-testid="export-dialog"
+        hideBackdrop
+        disableScrollLock
+        disableEnforceFocus
+        disableAutoFocus
+        sx={{
+          pointerEvents: 'none',
+          '& .MuiDialog-paper': { pointerEvents: 'auto' },
+        }}
       >
         <DialogTitle>Export ConfigMap</DialogTitle>
         <DialogContent>
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, mt: 1 }}>
+            <TextField
+              label="ConfigMap Name"
+              size="small"
+              value={configMapName}
+              onChange={(e) => setConfigMapName(e.target.value)}
+              slotProps={{ htmlInput: { 'data-testid': 'configmap-name-input' } }}
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              label="Namespace"
+              size="small"
+              value={configMapNamespace}
+              onChange={(e) => setConfigMapNamespace(e.target.value)}
+              slotProps={{ htmlInput: { 'data-testid': 'configmap-namespace-input' } }}
+              sx={{ flex: 1 }}
+            />
+          </Box>
+
+          <Box sx={{ mb: 2 }}>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCustomLabels((prev) => [...prev, { key: '', value: '' }])}
+              data-testid="add-label-button"
+            >
+              Add Label
+            </Button>
+            {customLabels.map((label, index) => (
+              <Box key={index} sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                <TextField
+                  size="small"
+                  placeholder="Key"
+                  value={label.key}
+                  onChange={(e) => {
+                    const updated = [...customLabels];
+                    updated[index].key = e.target.value;
+                    setCustomLabels(updated);
+                  }}
+                  slotProps={{ htmlInput: { 'data-testid': 'label-key-input' } }}
+                />
+                <TextField
+                  size="small"
+                  placeholder="Value"
+                  value={label.value}
+                  onChange={(e) => {
+                    const updated = [...customLabels];
+                    updated[index].value = e.target.value;
+                    setCustomLabels(updated);
+                  }}
+                  slotProps={{ htmlInput: { 'data-testid': 'label-value-input' } }}
+                />
+              </Box>
+            ))}
+          </Box>
+
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>Format</Typography>
             <ToggleButtonGroup
               value={exportFormat}
               exclusive
-              onChange={(_, val) => {
-                if (val) {
-                  setExportFormat(val);
-                  setExportPreview(generateConfigMap(val));
-                }
-              }}
+              onChange={(_, val) => { if (val) setExportFormat(val); }}
               size="small"
             >
               <ToggleButton value="yaml" data-testid="export-format-yaml">YAML</ToggleButton>
               <ToggleButton value="json" data-testid="export-format-json">JSON</ToggleButton>
             </ToggleButtonGroup>
           </Box>
-          <Box
-            data-testid="configmap-preview"
-            sx={{ height: 300, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'auto' }}
+
+          <Button
+            variant="outlined"
+            onClick={handlePreview}
+            data-testid="preview-configmap-button"
+            sx={{ mb: 2 }}
           >
-            <pre style={{ margin: 0, padding: '8px 12px', fontFamily: 'monospace', fontSize: '13px', whiteSpace: 'pre-wrap' }}>
-              {exportPreview}
-            </pre>
-          </Box>
+            Preview ConfigMap
+          </Button>
+
+          {previewVisible && (
+            <>
+              <Box
+                data-testid="configmap-preview"
+                sx={{ height: 300, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'auto', mb: 1 }}
+              >
+                <pre style={{ margin: 0, padding: '8px 12px', fontFamily: 'monospace', fontSize: '13px', whiteSpace: 'pre-wrap' }}>
+                  {exportPreview}
+                </pre>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button
+                  size="small"
+                  startIcon={<CopyIcon />}
+                  onClick={handleCopyConfigMap}
+                  data-testid="copy-configmap-button"
+                >
+                  Copy to Clipboard
+                </Button>
+                {copySuccess && (
+                  <Alert severity="success" sx={{ py: 0 }} data-testid="copy-success-message">
+                    Copied!
+                  </Alert>
+                )}
+              </Box>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
@@ -403,34 +587,109 @@ export const RouteList: React.FC = () => {
       >
         <DialogTitle>Import ConfigMap</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Paste your ConfigMap YAML or routing configuration below
-          </Typography>
-          {importError && (
-            <Alert severity="error" sx={{ mb: 2 }} data-testid="import-error">
-              {importError}
-            </Alert>
+          <Tabs value={importTab} onChange={(_, val) => setImportTab(val)} sx={{ mb: 2 }}>
+            <Tab label="Paste YAML" />
+            <Tab label="Import History" data-testid="import-history-tab" />
+          </Tabs>
+
+          {importTab === 0 && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Paste your ConfigMap YAML or routing configuration below
+              </Typography>
+              {importError && (
+                <Alert severity="error" sx={{ mb: 2 }} data-testid="import-error">
+                  {importError}
+                </Alert>
+              )}
+              <TextField
+                multiline
+                rows={12}
+                fullWidth
+                value={importContent}
+                onChange={(e) => { setImportContent(e.target.value); setImportError(''); }}
+                placeholder="Paste ConfigMap YAML or routing configuration here..."
+                slotProps={{ htmlInput: { 'data-testid': 'import-textarea' } }}
+                sx={{ fontFamily: 'monospace', mb: 2 }}
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <input
+                  type="file"
+                  accept=".yaml,.yml,.json"
+                  data-testid="import-file-input"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleFileImport}
+                  disabled={!selectedFile}
+                  data-testid="import-file-button"
+                >
+                  Import File
+                </Button>
+              </Box>
+            </>
           )}
-          <TextField
-            multiline
-            rows={15}
-            fullWidth
-            value={importContent}
-            onChange={(e) => { setImportContent(e.target.value); setImportError(''); }}
-            placeholder="Paste ConfigMap YAML or routing configuration here..."
-            slotProps={{ htmlInput: { 'data-testid': 'import-textarea' } }}
-            sx={{ fontFamily: 'monospace' }}
-          />
+
+          {importTab === 1 && (
+            <Box>
+              {importHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No import history yet.</Typography>
+              ) : (
+                importHistory.map((entry, index) => (
+                  <Box
+                    key={index}
+                    data-testid="import-history-item"
+                    sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}
+                  >
+                    <Typography variant="body2">{entry.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {entry.count} route(s) - {new Date(entry.date).toLocaleString()}
+                    </Typography>
+                  </Box>
+                ))
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setImportDialogOpen(false)}>Cancel</Button>
+          {importTab === 0 && (
+            <Button
+              onClick={handleImportConfirm}
+              variant="contained"
+              disabled={!importContent.trim()}
+              data-testid="import-confirm-button"
+            >
+              Import
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Import Conflict Dialog */}
+      <Dialog
+        open={conflictDialogOpen}
+        onClose={() => setConflictDialogOpen(false)}
+        data-testid="import-conflict-dialog"
+      >
+        <DialogTitle>Import Conflict</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Some routes being imported have the same name as existing routes.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConflictDialogOpen(false)}>Cancel</Button>
           <Button
-            onClick={handleImportConfirm}
+            onClick={handleReplaceExisting}
             variant="contained"
-            disabled={!importContent.trim()}
-            data-testid="import-confirm-button"
+            color="warning"
+            data-testid="replace-existing-button"
           >
-            Import
+            Replace Existing
           </Button>
         </DialogActions>
       </Dialog>

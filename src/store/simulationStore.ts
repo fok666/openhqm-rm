@@ -40,26 +40,57 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const startTime = performance.now();
 
     try {
-      // Step 1: Find matching route
+      // Step 1: Evaluate conditions on all routes
       const matchStart = performance.now();
-      const matchedRoute = await routeMatcher.matchRoute(routes, simulation);
-      const matchDuration = performance.now() - matchStart;
 
       simulation.trace.push({
         step: 1,
         type: 'route',
-        description: matchedRoute
-          ? `Matched route: ${matchedRoute.name}`
-          : 'No matching route found',
+        description: 'Evaluating conditions',
         input: input.payload,
-        output: matchedRoute?.name,
-        duration: matchDuration,
-        success: !!matchedRoute,
+        duration: 0,
+        success: true,
       });
 
+      const matchedRoute = await routeMatcher.matchRoute(routes, simulation);
+      const matchDuration = performance.now() - matchStart;
+
+      // Update timing on the first trace step
+      simulation.trace[0].duration = matchDuration;
       simulation.metrics.matchingDuration = matchDuration;
 
       if (matchedRoute) {
+        // Add individual condition evaluation entries
+        if (matchedRoute.conditions) {
+          matchedRoute.conditions.forEach((cond) => {
+            simulation.trace.push({
+              step: simulation.trace.length + 1,
+              type: 'condition',
+              description: `Condition: ${cond.field} ${cond.operator} ${cond.value || ''}`,
+              duration: 0,
+              success: true,
+            });
+          });
+        }
+
+        simulation.trace.push({
+          step: simulation.trace.length + 1,
+          type: 'route',
+          description: `Route matched: ${matchedRoute.name}`,
+          input: input.payload,
+          output: matchedRoute.name,
+          duration: 0,
+          success: true,
+        });
+
+        simulation.trace.push({
+          step: simulation.trace.length + 1,
+          type: 'route',
+          description: `Determining destination: ${matchedRoute.endpoint || 'default'}`,
+          duration: 0,
+          success: true,
+        });
+
         simulation.output.matchedRoute = matchedRoute.name;
         simulation.output.destination = matchedRoute.endpoint;
 
@@ -90,7 +121,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           } else {
             simulation.output.errors.push({
               severity: 'error',
-              message: transformResult.error || 'Transform failed',
+              message: `Transform error: ${transformResult.error || 'Transform failed'}`,
               context: 'JQ Transformation',
               suggestion: transformResult.suggestions?.[0],
             });

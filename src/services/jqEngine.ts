@@ -10,7 +10,14 @@ export class JQService {
     try {
       // Dynamically import jq-web
       const jqModule = await import('jq-web');
-      this.jq = await jqModule.default();
+      // jq-web exports a Promise via module.exports; handle different Vite interop formats
+      const exported = jqModule.default ?? jqModule;
+      const instance = typeof exported === 'function' ? await exported() : await exported;
+      // If instance has json method directly, use it; otherwise it might be a nested object
+      this.jq = typeof instance?.json === 'function' ? instance : (instance?.default ?? instance);
+      if (!this.jq || typeof this.jq.json !== 'function') {
+        throw new Error('jq-web initialization failed: json method not found');
+      }
       this.initialized = true;
     } catch (error) {
       console.error('Failed to initialize JQ:', error);
