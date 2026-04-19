@@ -401,6 +401,7 @@ export const RouteList: React.FC = () => {
           filteredRoutes.map((route) => (
             <ListItem
               key={route.name}
+              role="listitem"
               data-testid={`route-item-${route.name}`}
               secondaryAction={
                 <Box>
@@ -617,8 +618,10 @@ export const RouteList: React.FC = () => {
         maxWidth="md"
         fullWidth
         data-testid="import-dialog"
+        slotProps={{ paper: { 'data-testid': 'import-dialog-paper' } as Record<string, string> }}
+        aria-labelledby="import-dialog-title"
       >
-        <DialogTitle>Import ConfigMap</DialogTitle>
+        <DialogTitle id="import-dialog-title">Import ConfigMap</DialogTitle>
         <DialogContent>
           <Tabs value={importTab} onChange={(_, val) => setImportTab(val)} sx={{ mb: 2 }}>
             <Tab label="Paste YAML" />
