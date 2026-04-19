@@ -31,8 +31,8 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
       set({ isLoading: true, error: null });
       const routes = storageService.loadRoutes();
       set({ routes, isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+    } catch (error: unknown) {
+      set({ error: error instanceof Error ? error.message : String(error), isLoading: false });
     }
   },
 
@@ -40,8 +40,8 @@ export const useRouteStore = create<RouteStore>((set, get) => ({
     try {
       storageService.saveRoutes(routes);
       set({ routes, error: null });
-    } catch (error: any) {
-      set({ error: error.message });
+    } catch (error: unknown) {
+      set({ error: error instanceof Error ? error.message : String(error) });
     }
   },
 
