@@ -128,6 +128,33 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           }
         }
       } else {
+        // Update first trace step to show failure
+        simulation.trace[0].success = false;
+
+        // Add failed condition traces for each evaluated route as trace steps
+        const enabledRoutes = routes.filter((r) => r.enabled !== false);
+        for (const route of enabledRoutes) {
+          if (route.conditions && route.conditions.length > 0) {
+            route.conditions.forEach((cond) => {
+              simulation.trace.push({
+                step: simulation.trace.length + 1,
+                type: 'route',
+                description: `condition failed: ${cond.field} ${cond.operator} ${cond.value || ''} (route: ${route.name})`,
+                duration: 0,
+                success: false,
+              });
+            });
+          } else if (route.match_field) {
+            simulation.trace.push({
+              step: simulation.trace.length + 1,
+              type: 'route',
+              description: `condition failed: ${route.match_field} (route: ${route.name})`,
+              duration: 0,
+              success: false,
+            });
+          }
+        }
+
         simulation.output.errors.push({
           severity: 'warning',
           message: 'No matching route found for the given input',
