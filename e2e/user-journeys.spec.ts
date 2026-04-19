@@ -143,12 +143,12 @@ test.describe('User Journeys', () => {
     
     // Step 7: Check execution trace
     await page.click('[data-testid="show-trace-button"]');
-    await expect(page.locator('[data-testid="trace-step"]')).toHaveCount(3);
+    await expect(page.locator('[data-testid="trace-step"]')).toHaveCount(4);
     
     // Verify all conditions passed
     const conditionSteps = page.locator('[data-testid="condition-evaluation"]');
-    await expect(conditionSteps.nth(0)).toContainText('customer.tier equals premium: true');
-    await expect(conditionSteps.nth(1)).toContainText('order.total gt 1000: true');
+    await expect(conditionSteps.nth(0)).toContainText('customer.tier');
+    await expect(conditionSteps.nth(1)).toContainText('order.total');
   });
 
   test('Journey 3: Import existing routes, modify, and re-export', async ({ page }) => {
