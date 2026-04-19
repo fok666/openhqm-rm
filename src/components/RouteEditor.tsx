@@ -146,12 +146,13 @@ export const RouteEditor: React.FC = () => {
         </Typography>
         <TextField
           label="Name"
+          id="route-name-input"
           value={localRoute.name}
           onChange={(e) => handleUpdate({ name: e.target.value })}
           fullWidth
           margin="normal"
           required
-          slotProps={{ htmlInput: { 'data-testid': 'route-name-input', id: 'route-name-input', 'aria-required': 'true', 'aria-describedby': 'route-name-help' } }}
+          slotProps={{ htmlInput: { 'data-testid': 'route-name-input', 'aria-required': 'true', 'aria-describedby': 'route-name-help' } }}
           helperText="Unique identifier for this route"
           FormHelperTextProps={{ id: 'route-name-help' }}
         />
