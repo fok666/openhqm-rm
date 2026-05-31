@@ -149,7 +149,7 @@ jobs:
 
       - name: Comment PR with test results
         if: github.event_name == 'pull_request'
-        uses: daun/playwright-report-comment@v3
+        uses: daun/playwright-report-comment@v4
         with:
           report-file: playwright-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
